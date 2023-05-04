@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+fieldset {
+    @apply border rounded p-2;
+}
+
+legend {
+    @apply font-bold;
+}
