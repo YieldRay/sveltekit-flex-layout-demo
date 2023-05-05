@@ -1,12 +1,13 @@
 <script lang="ts">
     import Input from "./Input.svelte";
+    import Button from "./Button.svelte";
+    import { afterUpdate } from "svelte";
     import { fade } from "svelte/transition";
     import { longPressAction, clickOutsideAction } from "svelte-legos";
-    import { flex, camelToKebab } from "./flex";
+    import { flex, camelToKebab, styleObjToText } from "./flex";
 
     // css props control pannel
-
-    let cssProps = Object.fromEntries(
+    let containerFlexStylesWithOptions = Object.fromEntries(
         Object.entries(flex).map(([k, v]) => [
             k,
             {
@@ -16,19 +17,40 @@
         ])
     );
 
-    let gap = 8;
+    // css props control pannel, part other
+    let containerOtherStyles: Partial<CSSStyleDeclaration> = {
+        gap: "8px",
+        width: "",
+        height: "",
+        boxSizing: "border-box",
+        margin: "",
+        padding: "",
+    };
 
+    // apply styles to container element
+    let containerStyles: Partial<CSSStyleDeclaration> = {}; // the final applied styles
     let containerElement: HTMLDivElement;
     let cssText = "";
 
     $: {
-        if (containerElement) {
-            for (const [k, v] of Object.entries(cssProps)) Reflect.set(containerElement.style, k, v.value);
-            cssText = containerElement.style.cssText ?? "";
-        }
-    }
-    $: if (containerElement) containerElement.style.gap = gap + "px";
+        containerStyles = {
+            ...containerOtherStyles,
+            ...Object.fromEntries(
+                // containerFlexStylesWithOptions -> containerFlexStyles
+                Object.entries(containerFlexStylesWithOptions).map(([k, v]) => [k, v.value])
+            ),
+        };
+        // console.table(containerStyles);
 
+        // mutate css text to reflect container style changes
+        // notice: can only get cssText after the DOM change
+        afterUpdate(() => {
+            // if (containerElement)
+            cssText = containerElement.style.cssText ?? "";
+        });
+    }
+
+    // initial style for child items
     const selfStyle: Partial<CSSStyleDeclaration> = {
         width: "",
         height: "",
@@ -40,6 +62,7 @@
         alignSelf: "",
         justifySelf: "",
     };
+
     // init items
     let items = Array.from({ length: 6 }, (v, k) => {
         return {
@@ -49,29 +72,27 @@
             menu: false,
         };
     });
+
     // let deleteItem = (index: number) => (items = items.slice(0, index).concat(items.slice(index + 1)));
     let deleteItem = (key: number) => (items = items.filter((item) => item.key !== key));
-    let addItem = () =>
-        (items = [
-            ...items,
-            { key: items.length, menu: false, text: `Edit me! __No.${items.length}__`, style: { ...selfStyle } },
-        ]);
+    let addItem = () => {
+        const key = items.length ? items.at(-1)!.key + 1 : 0;
+        // key = items.length
+        items = [...items, { key, menu: false, text: `Edit me! __No.${key}__`, style: { ...selfStyle } }];
+    };
+    let removeAllItem = () => (items = []);
+
+    // this is used for avoid typescript error with Object.keys
+    // Element implicitly has an 'any' type because index expression is not of type 'number'.ts(7015)
+    const getKeysOfObject = (o: object) => Object.keys(o) as any[];
 </script>
 
 <fieldset>
     <legend>output</legend>
-    <div bind:this={containerElement} class="flex">
+    <div bind:this={containerElement} class="flex outline" style={styleObjToText(containerStyles)}>
         {#each items as item (item.key)}
-            <!-- style:flex-basis={item.style.flexBasis}
-                    style:flex-grow={item.style.flexGrow}
-                    style:flex-shirnk={item.style.flexShrink}
-                    style:align-self={item.style.alignSelf}
-                    style:justify-self={item.style.justifySelf}
-                 -->
             <div
-                style={Object.entries(item.style)
-                    .map(([k, v]) => (v ? `${camelToKebab(k)}: ${v};` : ""))
-                    .join("")}
+                style={styleObjToText(item.style)}
                 class="relative"
                 use:longPressAction={500}
                 on:longpress={() => (item.menu = !item.menu)}
@@ -92,15 +113,10 @@
                         class="absolute top-0 left-0 z-10 border-2 rounded with-backdrop"
                     >
                         <strong class="block px-2 py-1"> settings for {item.key} </strong>
-                        {#each Object.keys(item.style) as prop}
+                        {#each getKeysOfObject(item.style) as prop}
                             <Input bind:value={item.style[prop]}>{camelToKebab(prop)}</Input>
                         {/each}
-                        <button
-                            class="w-[100%] rounded hover:bg-[rgba(0,0,0,0.2)] p-1 bg-[rgba(0,0,0,0.1)]"
-                            on:click={() => deleteItem(item.key)}
-                        >
-                            remove this
-                        </button>
+                        <Button className="w-[100%]" on:click={() => deleteItem(item.key)}>remove this</Button>
                     </menu>
                 {/if}
             </div>
@@ -111,25 +127,36 @@
 <fieldset>
     <legend>container style</legend>
 
-    <label>
-        gap
-        <input type="range" bind:value={gap} />
-    </label>
-
-    <button on:click={addItem}>Add One</button>
-
-    <div class="flex gap-2 justify-center">
-        {#each Object.keys(cssProps) as prop}
+    <div class="flex gap-2 justify-center flex-wrap">
+        {#each Object.keys(containerFlexStylesWithOptions) as prop}
             <fieldset class="p-2">
                 <legend>{camelToKebab(prop)}</legend>
-                {#each cssProps[prop].options as option}
-                    <label class="block pa-2">
-                        <input name={prop} type="radio" value={option} bind:group={cssProps[prop].value} />
+                {#each containerFlexStylesWithOptions[prop].options as option}
+                    <label class="block">
+                        <input
+                            name={prop}
+                            type="radio"
+                            value={option}
+                            bind:group={containerFlexStylesWithOptions[prop].value}
+                        />
                         {option}
                     </label>
                 {/each}
             </fieldset>
         {/each}
+
+        <fieldset class="p-2">
+            <legend>others</legend>
+            <p>
+                right click or long press any of <br /> the child element to set its own style
+            </p>
+
+            <Button on:click={addItem}>Add One</Button>
+            <Button on:click={removeAllItem}>Remove All</Button>
+            {#each getKeysOfObject(containerOtherStyles) as prop}
+                <Input bind:value={containerOtherStyles[prop]}>{camelToKebab(prop)}</Input>
+            {/each}
+        </fieldset>
     </div>
 </fieldset>
 
@@ -140,7 +167,7 @@
 
 <style>
     :root {
-        max-width: 1080px;
+        max-width: 99%;
         margin: auto;
         overflow-x: hidden;
     }

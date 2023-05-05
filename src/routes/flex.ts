@@ -159,3 +159,9 @@ export const self: CssPropOptions = {
 export function camelToKebab(camelString: string) {
     return camelString.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 }
+
+export function styleObjToText(styleObj: Partial<CSSStyleDeclaration>) {
+    return Object.entries(styleObj)
+        .map(([k, v]) => (v ? `${camelToKebab(k)}: ${v};` : ""))
+        .join("");
+}
